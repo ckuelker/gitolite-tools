@@ -9,6 +9,7 @@
 # | Changes:                                                                  |
 # |                                                                           |
 # | 0.1.0 2022-02-27 Christian Külker <c@c8i.org>                             |
+# |     - Change from $0 to basename $b in sub usage                          |
 # |     - Initial release                                                     |
 # |                                                                           |
 # +---------------------------------------------------------------------------+
@@ -162,13 +163,13 @@ sub usage {
     my $b = basename($0);
     print <<"EOU";
 USAGE:
-    $0 --help                                               : This text
-    $0 [OPTIONS] --old=FILE --new=FILE                      : Rename OLD to NEW
+    $b --help                                               : This text
+    $b [OPTIONS] --old=FILE --new=FILE                      : Rename OLD to NEW
 EXAMPLES:
     Method 1:
-    $0 -h                                                   : Print this text
+    $b -h                                                   : Print this text
     Method 2:
-    $0 -o OLD_FILE -n NEW_FILE                              : Rename OLD to NEW
+    $b -o OLD_FILE -n NEW_FILE                              : Rename OLD to NEW
 OPTIONS:
      -d                          | Optional : Same as --debug
     --debug                      | Optional : Print many additional information
