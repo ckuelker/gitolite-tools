@@ -4,10 +4,12 @@
 # |                                                                           |
 # | Description.                                                              |
 # |                                                                           |
-# | Version: 0.1.0 (change inline)                                            |
+# | Version: 0.1.1 (change inline)                                            |
 # |                                                                           |
 # | Changes:                                                                  |
 # |                                                                           |
+# | 0.1.1 2022-02-27 Christian Külker <c@c8i.org>                             |
+# |     - Add --nocfg option                                                  |
 # | 0.1.0 2022-02-27 Christian Külker <c@c8i.org>                             |
 # |     - Initial release                                                     |
 # |                                                                           |
@@ -33,6 +35,7 @@ my @opt = qw(
     debug|d
     help|h
     new|n=s
+    nocfg
     old|o=s
     path|p=s
     verbose|v
@@ -45,9 +48,10 @@ my $opt = {
 };
 
 # Options with undefined as default value
-$opt->{cfg}  = undef;
-$opt->{new}  = undef;
-$opt->{old}  = undef;
+$opt->{cfg}   = undef;
+$opt->{new}   = undef;
+$opt->{nocfg} = undef;
+$opt->{old}   = undef;
 
 # Options with empty as default value
 $opt->{path} = q{};
@@ -56,7 +60,7 @@ GetOptions( $opt, @opt ) or die("Error in command line arguments");
 
 $opt->{verbose} = 1 if $opt->{debug};
 
-our $VERSION = '0.1.0';
+our $VERSION = '0.1.1';
 print "$0 $VERSION\n" if $opt->{verbose};
 
 usage('HELP') if $opt->{help};
@@ -92,8 +96,13 @@ my $cfg
     = ( defined $opt->{cfg} ) ? $opt->{cfg}
     : ( $opt->{path} eq '' ) ? "gitolite-admin/conf/gitolite.conf"
     :   "$opt->{path}/gitolite-admin/conf/gitolite.conf";
-usage("No cfg [$cfg]") if not -f $cfg;
-print "- Cfg at: [$cfg]\n" if $opt->{debug};
+if ( $opt->{nocfg} ) {
+    print "- Skip changing [$cfg] (--nocfg)\n" if $opt->{debug};
+}
+else {
+    usage("No cfg [$cfg]") if not -f $cfg and not $opt->{nocfg};
+    print "- Cfg at: [$cfg]\n" if $opt->{debug};
+}
 
 # Checking .git/config location
 my $config = "$old_dr/.git/config";
@@ -103,24 +112,28 @@ usage("No git config at [$config]") if not -f $config;
 # DAMAGE routines starting here
 
 # Change the repository name in gitolite.conf
-# Grep old name from gitolite.conf
-my $grep = "grep '$opt->{old}' $cfg >/dev/null";
-print "- Grep [$grep]\n" if $opt->{debug};
-if ( system $grep) {
-    die "ERROR: Old [$opt->{old}] not in [$cfg]";
-}
-else {
-    print "- Replace [$opt->{old}] with [$opt->{new}]\n" if $opt->{debug};
+if ( not $opt->{nocfg} ) {
 
-    # Replace old name with new name in gitolite.conf
-    my $sed = qq{sed -i -e 's%$opt->{old}%$opt->{new}%g' $cfg};
-    print "- Sed command [$sed]\n" if $opt->{debug};
-    if ( system $sed) {
-        die "ERROR: Replace-problem [$opt->{old}]->[$opt->{new}] by [$sed]";
+    # Grep old name from gitolite.conf
+    my $grep = "grep '$opt->{old}' $cfg >/dev/null";
+    print "- Grep [$grep]\n" if $opt->{debug};
+    if ( system $grep) {
+        die "ERROR: Old [$opt->{old}] not in [$cfg]";
     }
     else {
-        if ( $opt->{verbose} ) {
-            print "- Replaced [$opt->{old}] with [$opt->{new}] at [$cfg]\n";
+        print "- Replace [$opt->{old}] with [$opt->{new}]\n" if $opt->{debug};
+
+        # Replace old name with new name in gitolite.conf
+        my $sed = qq{sed -i -e 's%$opt->{old}%$opt->{new}%g' $cfg};
+        print "- Sed command [$sed]\n" if $opt->{debug};
+        if ( system $sed) {
+            die "ERROR: Not replaced [$opt->{old}]->[$opt->{new}] by [$sed]";
+        }
+        else {
+            if ( $opt->{verbose} ) {
+                print
+                    "- Replaced [$opt->{old}] with [$opt->{new}] at [$cfg]\n";
+            }
         }
     }
 }
