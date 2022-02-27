@@ -1,0 +1,208 @@
+#!/usr/bin/perl -CSDA
+# +---------------------------------------------------------------------------+
+# | gitolite-tools-rename-on-client                                           |
+# |                                                                           |
+# | Description.                                                              |
+# |                                                                           |
+# | Version: 0.1.0 (change inline)                                            |
+# |                                                                           |
+# | Changes:                                                                  |
+# |                                                                           |
+# | 0.1.0 2022-02-27 Christian Külker <c@c8i.org>                             |
+# |     - Initial release                                                     |
+# |                                                                           |
+# +---------------------------------------------------------------------------+
+use utf8;                        # so literals and identifiers can be in UTF-8
+use v5.12;                       # or later to get "unicode_strings" feature
+use strict;                      # quote strings, declare variables
+use warnings;                    # on by default
+use warnings qw(FATAL utf8);     # make encoding glitches fatal
+use open qw(:std :utf8);         # undeclared streams in UTF-8
+use charnames qw(:full :short);  # unneeded in v5.16
+use utf8::all;                   # does probably all of the above and more
+                                 # turn on Unicode - all of it
+use Data::Dumper;
+use Getopt::Long;
+use File::Basename;
+
+our $L = q{=} x 80;
+
+# ENV - command line
+my @opt = qw(
+    cfg|c=s
+    debug|d
+    help|h
+    new|n=s
+    old|o=s
+    path|p=s
+    verbose|v
+);
+
+my $opt = {
+    debug   => 0,
+    help    => 0,
+    verbose => 0,
+};
+
+# Options with undefined as default value
+$opt->{cfg}  = undef;
+$opt->{new}  = undef;
+$opt->{old}  = undef;
+
+# Options with empty as default value
+$opt->{path} = q{};
+
+GetOptions( $opt, @opt ) or die("Error in command line arguments");
+
+$opt->{verbose} = 1 if $opt->{debug};
+
+our $VERSION = '0.1.0';
+print "$0 $VERSION\n" if $opt->{verbose};
+
+usage('HELP') if $opt->{help};
+
+# Checks
+die usage("No option --new") if not defined $opt->{new};
+die usage("No option --old") if not defined $opt->{old};
+print "- Cfg: [$opt->{cfg}]\n" if ( $opt->{debug} and defined $opt->{cfg} );
+print "- Old name: [$opt->{old}]\n"              if $opt->{debug};
+print "- New name: [$opt->{new}]\n"              if $opt->{debug};
+print "- Path: [$opt->{path}]\n"                 if $opt->{debug};
+usage("Space found: unsupported [$opt->{new}]")  if $opt->{new} =~ /\s+/gmx;
+usage("Space found: unsupported [$opt->{old}]")  if $opt->{old} =~ /\s+/gmx;
+usage("Space found: unsupported [$opt->{path}]") if $opt->{path} =~ /\s+/gmx;
+
+# Get gitolite repository directory
+print "- Repo dir: [$opt->{path}]\n" if $opt->{debug};
+
+# Checking old repository location
+my $old_dr
+    = ( $opt->{path} eq '' ) ? $opt->{old} : "$opt->{path}/$opt->{old}";
+usage("No old repository [$old_dr]") if not -d $old_dr;
+print "- Old directory: [$old_dr]\n" if $opt->{debug};
+
+# Checking new repository location
+my $new_dr
+    = ( $opt->{path} eq '' ) ? $opt->{new} : "$opt->{path}/$opt->{new}";
+usage("New repository [$new_dr] exists ") if -d $new_dr;
+print "- New directory: [$new_dr]\n" if $opt->{debug};
+
+# Checking gitolite cfg location
+my $cfg
+    = ( defined $opt->{cfg} ) ? $opt->{cfg}
+    : ( $opt->{path} eq '' ) ? "gitolite-admin/conf/gitolite.conf"
+    :   "$opt->{path}/gitolite-admin/conf/gitolite.conf";
+usage("No cfg [$cfg]") if not -f $cfg;
+print "- Cfg at: [$cfg]\n" if $opt->{debug};
+
+# Checking .git/config location
+my $config = "$old_dr/.git/config";
+print "- Old git config at [$config]\n" if $opt->{debug};
+usage("No git config at [$config]") if not -f $config;
+
+# DAMAGE routines starting here
+
+# Change the repository name in gitolite.conf
+# Grep old name from gitolite.conf
+my $grep = "grep '$opt->{old}' $cfg >/dev/null";
+print "- Grep [$grep]\n" if $opt->{debug};
+if ( system $grep) {
+    die "ERROR: Old [$opt->{old}] not in [$cfg]";
+}
+else {
+    print "- Replace [$opt->{old}] with [$opt->{new}]\n" if $opt->{debug};
+
+    # Replace old name with new name in gitolite.conf
+    my $sed = qq{sed -i -e 's%$opt->{old}%$opt->{new}%g' $cfg};
+    print "- Sed command [$sed]\n" if $opt->{debug};
+    if ( system $sed) {
+        die "ERROR: Replace-problem [$opt->{old}]->[$opt->{new}] by [$sed]";
+    }
+    else {
+        if ( $opt->{verbose} ) {
+            print "- Replaced [$opt->{old}] with [$opt->{new}] at [$cfg]\n";
+        }
+    }
+}
+
+# Change repository location in ./git/config
+#     git@SERVER:OLD.git
+my $sed = qq{sed -i -e 's%$opt->{old}%$opt->{new}%g' $config};
+print "- Sed command [$sed]\n" if $opt->{debug};
+if ( system $sed) {
+    die "ERROR: Not replaced [$opt->{old}] at [$config]";
+}
+else {
+    if ( $opt->{verbose} ) {
+        print "- Replaced [$opt->{old}] with [$opt->{new}] at [$config]\n";
+    }
+}
+
+# Move Repository
+my $mv = "mv $old_dr $new_dr";
+print "- Move command [$mv]\n" if $opt->{debug};
+if ( system $mv) {
+    die "ERROR: Can not move [$old_dr] to [$new_dr]";
+}
+else {
+    print "- Moved [$old_dr] to [$new_dr]\n" if $opt->{verbose};
+}
+1;
+
+sub usage {
+    my $e = shift;
+    if ( $e eq 'HELP' ) {
+        print "$L\n$e\n$L\n" if defined $e;
+    }
+    else {
+        print "$L\nERROR: $e\n$L\n" if defined $e;
+    }
+    my $b = basename($0);
+
+    print <<"EOU";
+USAGE:
+    $b --help                      : This text
+
+    $b [OPTIONS] -o FILE -n FILE   : Rename OLD to NEW
+EXAMPLES:
+    Method 1:
+    $b -h                          : Print this text
+    Method 2:
+    cd DIR && $b -o OLD -n NEW     : Rename OLD
+                                                                  to NEW at
+                                                                  DIR location
+    $b -o OLD -n NEW -p DIR        : Rename OLD
+                                                                  to NEW above
+                                                                  gitolite-
+                                                                  admin
+                                                                  directory
+                                                                  level
+    $b -o OLD -n NEW -p DIR -c CFG : Rename OLD
+                                                                  to NEW
+                                                                  at random
+                                                                  location
+OPTIONS:
+     -c FILE                     | Optional : Same as --cfg
+    --cfg=FILE                   | Optional : Spicify `gitolite.conf` location
+     -d                          | Optional : Same as --debug
+    --debug                      | Optional : Print many additional information
+     -h                          | Optional : Same as --help
+    --help                       | Optional : Print this information
+     -n FILE                     | Mandatory: Same as --new
+    --new=FILE                   | Mandatory: Specify new file
+     -o FILE                     | Mandatory: Same as --old
+    --old=FILE                   | Mandatory: Specify old file
+     -p DIRECTORY                | Optional : Same as --path
+    --path=DIRECTORY             | Optional : Specify directory of repositories
+     -v                          | Optional : Same as --verbose
+    --verbose                    | Optional : Print some additional information
+
+EOU
+    exit 1 if $e eq 'HELP';
+    exit 2 if defined $e;
+    exit 1;
+}
+
+1;
+__END__
+

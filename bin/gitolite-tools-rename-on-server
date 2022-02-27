@@ -1,0 +1,195 @@
+#!/usr/bin/perl -CSDA
+# +---------------------------------------------------------------------------+
+# | gitolite-tools-rename-on-server                                           |
+# |                                                                           |
+# | Description.                                                              |
+# |                                                                           |
+# | Version: 0.1.0 (change inline)                                            |
+# |                                                                           |
+# | Changes:                                                                  |
+# |                                                                           |
+# | 0.1.0 2022-02-27 Christian Külker <c@c8i.org>                             |
+# |     - Initial release                                                     |
+# |                                                                           |
+# +---------------------------------------------------------------------------+
+use utf8;                        # so literals and identifiers can be in UTF-8
+use v5.12;                       # or later to get "unicode_strings" feature
+use strict;                      # quote strings, declare variables
+use warnings;                    # on by default
+use warnings qw(FATAL utf8);     # make encoding glitches fatal
+use open qw(:std :utf8);         # undeclared streams in UTF-8
+use charnames qw(:full :short);  # unneeded in v5.16
+use utf8::all;                   # does probably all of the above and more
+                                 # turn on Unicode - all of it
+use Data::Dumper;
+use Getopt::Long;
+use File::Basename;
+
+our $L = q{=} x 80;
+
+# ENV - command line
+my @opt = qw(debug|d help|h new|n=s old|o=s user|u=s verbose|v);
+
+my $opt = {
+    debug   => 0,
+    help    => 0,
+    verbose => 0,
+};
+
+# Options with undefined as default value
+$opt->{new} = undef;
+$opt->{old} = undef;
+
+GetOptions( $opt, @opt ) or die("Error in command line arguments");
+
+$opt->{verbose} = 1 if $opt->{debug};
+
+our $VERSION = '0.1.0';
+print "$0 $VERSION\n" if $opt->{verbose};
+
+usage('HELP') if $opt->{help};
+
+# Checks
+die usage("No option --new")                    if not defined $opt->{new};
+die usage("No option --old")                    if not defined $opt->{old};
+print "- Old name: [$opt->{old}]\n"             if $opt->{debug};
+print "- New name: [$opt->{new}]\n"             if $opt->{debug};
+usage("Space found: unsupported [$opt->{new}]") if $opt->{new} =~ /\s+/gmx;
+usage("Space found: unsupported [$opt->{old}]") if $opt->{old} =~ /\s+/gmx;
+
+# Get gitolite user
+my $user = q{};
+if ( getpwnam 'gitolite' ) {
+    $user = 'gitolite';
+}
+elsif ( getpwnam 'git' ) {
+    $user = 'git';
+}
+elsif ( defined $opt->{user} ) {
+    $user = $opt->{user};
+}
+else {
+    usage("No 'gitolite' or 'git' user, use --user=USER'");
+}
+usage("User [$user] does not exists") if not getpwnam $user;
+print "- Gitolite user: [$user]\n" if $opt->{debug};
+
+# Check root user
+usage("Not root. Run as user root") if $ENV{USER} ne 'root';
+print "- Runing as [root]\n" if $opt->{debug};
+
+# Get and check gitolite binary location
+my $bin = '/usr/bin/gitolite';    # Use which?
+usage("Gitolite not installed at [$bin]") if not -f $bin;
+usage("Gitolite [$bin] not executable")   if not -x $bin;
+
+# Get gitolite repository base directory
+my $base = qx(su -c '$bin query-rc GL_REPO_BASE' $user);
+chomp $base;
+print "- Repo base: [$base]\n" if $opt->{debug};
+
+# Checking old repository location
+my $old_dr = "$base/$opt->{old}.git";
+usage("No old repository [$old_dr]") if not -d $old_dr;
+print "- Old directory: [$old_dr]\n" if $opt->{debug};
+
+# Checking new repository location
+my $new_dr = "$base/$opt->{new}.git";
+usage("New repository [$new_dr] exists ") if -d $new_dr;
+print "- New directory: [$new_dr]\n" if $opt->{debug};
+
+# Checking gitolite version (seems no easy way to get the version)
+# hello git, this is git@srv running gitolite3 3.6.11-2 (Debian) on git 2.20.1
+my $v_cmd = qq{su -c 'GL_USER=$user gitolite info' $user};
+my $v_str = qx($v_cmd);
+chomp $v_str;
+$v_str =~ m{.*(gitolite\d+)\s+([0-9-.]+).*git\s+([0-9-.]+)}gmx;
+my ( $gl_ma, $gl_mi, $git_v ) = ( $1, $2, $3 );
+print "- Gitolite major version: [$gl_ma]\n" if $opt->{debug};
+print "- Gitolite minor version: [$gl_mi]\n" if $opt->{debug};
+print "- Git version: [$git_v]\n"            if $opt->{debug};
+warn "WARN: Gitolite not version 3 [$gl_ma]" if $gl_ma ne 'gitolite3';
+
+# Checking `gl-conf`
+my $gl_conf = "$old_dr/gl-conf";
+warn "WARN: Not a gitolite3 repository. No [$gl_conf]" if not -f $gl_conf;
+
+# DAMAGE routines starting here
+
+# Replace old repo name with new repo name in REPO/gl-conf
+if ( -f $gl_conf ) {
+    print "- Changing gl-conf: [$new_dr]\n" if $opt->{debug};
+    my $grep = "grep '$opt->{old}' $gl_conf > /dev/null";
+    print "- Grep [$grep]\n" if $opt->{debug};
+    if ( system $grep) {
+        warn "WARN: No [$opt->{old}] at $gl_conf";
+    }
+    else {
+        print "- Found [$opt->{old}] in [$gl_conf]\n" if $opt->{debug};
+        my $sed = qq{sed -i -e 's%$opt->{old}%$opt->{new}%g' $gl_conf};
+        print "- Sed command [$sed]\n" if $opt->{debug};
+        if ( system $sed) {
+            die "ERROR: Replace [$opt->{old}]->[$opt->{new}]: [$gl_conf]";
+        }
+        else {
+            if ( $opt->{verbose} ) {
+                print "- Replaced [$opt->{old}]->[$opt->{new}]: [$gl_conf]\n";
+            }
+        }
+    }
+}
+
+# Move old repo to new repo
+my $mv = qq{mv $old_dr $new_dr};
+print "- Move command [$mv]\n" if $opt->{debug};
+if ( system $mv ) {
+    die "ERROR: moving [$old_dr] to [$new_dr] failed";
+}
+else {
+    print "- Moved [$old_dr] to [$new_dr]\n" if $opt->{verbose};
+}
+
+1;
+
+sub usage {
+    my $e = shift;
+    if ( $e eq 'HELP' ) {
+        print "$L\n$e\n$L\n" if defined $e;
+    }
+    else {
+        print "$L\nERROR: $e\n$L\n" if defined $e;
+    }
+    my $b = basename($0);
+    print <<"EOU";
+USAGE:
+    $0 --help                                               : This text
+    $0 [OPTIONS] --old=FILE --new=FILE                      : Rename OLD to NEW
+EXAMPLES:
+    Method 1:
+    $0 -h                                                   : Print this text
+    Method 2:
+    $0 -o OLD_FILE -n NEW_FILE                              : Rename OLD to NEW
+OPTIONS:
+     -d                          | Optional : Same as --debug
+    --debug                      | Optional : Print many additional information
+     -h                          | Optional : Same as --help
+    --help                       | Optional : Print this information
+     -n FILE                     | Mandatory: Same as --new
+    --new=FILE                   | Mandatory: Specify new file
+     -o FILE                     | Mandatory: Same as --old
+    --old=FILE                   | Mandatory: Specify old file
+     -u USER                     |          : Same as --user
+    --user=USER                  |          : Specify gitolite user if not
+                                 |            'gitolite' or 'git'
+     -v                          | Optional : Same as --verbose
+    --verbose                    | Optional : Print some additional information
+
+EOU
+    exit 1 if $e eq 'HELP';
+    exit 2 if defined $e;
+    exit 1;
+}
+
+1;
+__END__
+
