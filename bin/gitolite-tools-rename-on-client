@@ -9,6 +9,8 @@
 # | Changes:                                                                  |
 # |                                                                           |
 # | 0.1.1 2022-02-27 Christian Külker <c@c8i.org>                             |
+# |     - Add --nocfg to usage                                                |
+# |     - Minor reformatting                                                  |
 # |     - Add --nocfg option                                                  |
 # | 0.1.0 2022-02-27 Christian Külker <c@c8i.org>                             |
 # |     - Initial release                                                     |
@@ -131,8 +133,7 @@ if ( not $opt->{nocfg} ) {
         }
         else {
             if ( $opt->{verbose} ) {
-                print
-                    "- Replaced [$opt->{old}] with [$opt->{new}] at [$cfg]\n";
+                print "- Replaced [$opt->{old}]->[$opt->{new}] at [$cfg]\n";
             }
         }
     }
@@ -203,6 +204,7 @@ OPTIONS:
     --help                       | Optional : Print this information
      -n FILE                     | Mandatory: Same as --new
     --new=FILE                   | Mandatory: Specify new file
+    --nocfg                      | Optional : Will not change `gitolite.conf`
      -o FILE                     | Mandatory: Same as --old
     --old=FILE                   | Mandatory: Specify old file
      -p DIRECTORY                | Optional : Same as --path
