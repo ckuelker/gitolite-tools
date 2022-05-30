@@ -1,7 +1,8 @@
 ---
-title:  gitolite-tools/README.md
+title: gitolite-tools/README.md
 author: Christian Külker
-date:   2022-02-27
+date: 2022-05-30
+version: 0.1.1
 
 ---
 
@@ -20,6 +21,7 @@ This document describes briefly the aim and content of `gitolite-tools`. The
 
 | Version | Date       | Notes                                                |
 | ------- | ---------- | ---------------------------------------------------- |
+| 0.1.1   | 2022-05-30 | Update description in files bin/*; .gitignore        |
 | 0.1.0   | 2022-02-27 | Initial release                                      |
 
 # Introduction
