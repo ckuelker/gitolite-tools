@@ -2,7 +2,8 @@
 # +---------------------------------------------------------------------------+
 # | gitolite-tools-rename-on-server                                           |
 # |                                                                           |
-# | Description.                                                              |
+# | Rename a gitolite repository on the server's file system.                 |
+# | See https://github.com/ckuelker/gitolite-tools                            |
 # |                                                                           |
 # | Version: 0.1.0 (change inline)                                            |
 # |                                                                           |
@@ -163,6 +164,9 @@ sub usage {
     my $b = basename($0);
     print <<"EOU";
 USAGE:
+    Rename a gitolite repository on the server's file system. This script has
+    to be executed first.
+
     $b --help                                               : This text
     $b [OPTIONS] --old=FILE --new=FILE                      : Rename OLD to NEW
 EXAMPLES:

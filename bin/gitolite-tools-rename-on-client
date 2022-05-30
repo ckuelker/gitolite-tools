@@ -2,7 +2,9 @@
 # +---------------------------------------------------------------------------+
 # | gitolite-tools-rename-on-client                                           |
 # |                                                                           |
-# | Description.                                                              |
+# | Rename a git repository on the client where the gitolite-admin.git        |
+# | repository is present.                                                    |
+# | See https://github.com/ckuelker/gitolite-tools                            |
 # |                                                                           |
 # | Version: 0.1.1 (change inline)                                            |
 # |                                                                           |
@@ -175,6 +177,9 @@ sub usage {
 
     print <<"EOU";
 USAGE:
+    Rename a git repository on the client where the gitolite-admin.git
+    repository is present. This script has to be executed as the second script.
+
     $b --help                      : This text
 
     $b [OPTIONS] -o FILE -n FILE   : Rename OLD to NEW
